@@ -1,4 +1,4 @@
-## Interface: 100105    -- <--- update this to your current WoW client interface number
+## Interface: 120000, 110205
 ## Title: Ella's Currency Tracker
 ## Notes: Simple currency tracker addon
 ## Author: theswiftfox
