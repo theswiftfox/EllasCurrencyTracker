@@ -4,6 +4,8 @@
 
 EllasCurrencyTracker displays one line per tracked currency showing the icon, name and current amount. It is small, configurable, and designed to be easy to use in any UI layout.
 
+![Preview of EllasCurrencyTracker](preview.png)
+
 ## Features
 
 - 🔹 Track up to 18 currencies at once (saved per account).
