@@ -20,7 +20,8 @@
         "FauxScrollFrame_Update",
         "FauxScrollFrame_SetOffset",
         "FauxScrollFrame_OnVerticalScroll",
-        "FauxScrollFrame_GetOffset"
+        "FauxScrollFrame_GetOffset",
+        "ColorPickerFrame"
     ],
     "Lua.type.weakUnionCheck": true,
     "Lua.diagnostics.disable": [

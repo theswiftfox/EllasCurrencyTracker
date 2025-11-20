@@ -7,16 +7,14 @@ Features:
 - Add currencies by pasting a currency link (from chat) or by ID.
 - Choose growth direction (up or down).
 - Drag the anchor to position it anywhere (position saved).
+- small settings ui to customize tracked currencies and colors
 
 Commands:
-- /cl add <currencyID|currencyLink>
-- /cl remove <currencyID>
-- /cl list
-- /cl grow up|down
-- /cl anchor   (toggle anchor unlock for dragging)
-- /cl reset
-- /cl help
-
-Notes:
-- The addon attempts to support both modern Retail APIs (C_CurrencyInfo) and older APIs when available.
-- If a currency does not show an icon, the icon may not be exposed by the API or the ID is invalid.
+- /etc config (open config window)
+- /ect add <currencyID|currencyLink>
+- /ect remove <currencyID>
+- /ect list
+- /ect grow up|down
+- /ect anchor   (toggle anchor unlock for dragging)
+- /ect reset
+- /ect help

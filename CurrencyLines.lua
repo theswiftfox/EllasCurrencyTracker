@@ -9,6 +9,8 @@ local DB_DEFAULTS = {
     anchor = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0, width = 240, scale = 1 },
     lineHeight = 20,
     font = (GameFontNormal and GameFontNormal:GetFont()) or "Fonts\\FRIZQT__.TTF",
+    fontColor = { 1, 1, 1 },  -- r,g,b for currency line text
+    titleColor = { 1, 1, 1 }, -- r,g,b for main window title
 }
 
 -- Saved variables table (populated by WoW with EllasCurrencyTrackerDB)
@@ -21,6 +23,8 @@ local function InitDB()
     if not EllasCurrencyTrackerDB.anchor then EllasCurrencyTrackerDB.anchor = DB_DEFAULTS.anchor end
     if not EllasCurrencyTrackerDB.lineHeight then EllasCurrencyTrackerDB.lineHeight = DB_DEFAULTS.lineHeight end
     if not EllasCurrencyTrackerDB.font then EllasCurrencyTrackerDB.font = DB_DEFAULTS.font end
+    if not EllasCurrencyTrackerDB.fontColor then EllasCurrencyTrackerDB.fontColor = DB_DEFAULTS.fontColor end
+    if not EllasCurrencyTrackerDB.titleColor then EllasCurrencyTrackerDB.titleColor = DB_DEFAULTS.titleColor end
 end
 
 InitDB()
@@ -81,11 +85,15 @@ local function AcquireLine(index)
         -- Icon
         f.icon = f:CreateTexture(nil, "ARTWORK")
         f.icon:SetSize(EllasCurrencyTrackerDB.lineHeight - 4, EllasCurrencyTrackerDB.lineHeight - 4)
-        f.icon:SetPoint("LEFT", 2, 0)
-        -- Text
-        f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        f.text:SetPoint("LEFT", f.icon, "RIGHT", 6, 0)
-        f.text:SetJustifyH("LEFT")
+        f.icon:SetPoint("RIGHT", -2, 0)
+        -- Amount
+        f.amount = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        f.amount:SetPoint("RIGHT", f.icon, "LEFT", -6, 0)
+        f.amount:SetJustifyH("RIGHT")
+        -- Name
+        f.name = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        f.name:SetPoint("LEFT", 2, 0)
+        f.name:SetJustifyH("LEFT")
         f.id = nil
         framePool[index] = f
     end
@@ -120,8 +128,13 @@ local function RebuildLines()
             else
                 line.icon:Hide()
             end
-            line.text:SetFont(EllasCurrencyTrackerDB.font, 12)
-            line.text:SetText(("[%s] %s"):format(tostring(info.amount), info.name or ("Currency " .. id)))
+            line.amount:SetFont(EllasCurrencyTrackerDB.font, 12)
+            line.amount:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.amount:SetText(tostring(info.amount))
+
+            line.name:SetFont(EllasCurrencyTrackerDB.font, 12)
+            line.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.name:SetText(("%s"):format(info.name or ("Currency " .. id)))
             line.id = id
 
             line:ClearAllPoints()
@@ -161,7 +174,11 @@ local function UpdateAll()
             else
                 line.icon:Hide()
             end
-            line.text:SetText(("[%s] %s"):format(tostring(info.amount), info.name or ("Currency " .. id)))
+            line.amount:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.amount:SetText(tostring(info.amount))
+
+            line.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.name:SetText(("%s"):format(info.name or ("Currency " .. id)))
         end
     end
     -- also refresh discovered cache amounts (for settings window)
@@ -204,6 +221,11 @@ local function RemoveCurrency(id)
     return false, "not found"
 end
 
+local function updateTitleColor()
+    mainFrame.title:SetTextColor(unpack(EllasCurrencyTrackerDB.titleColor or DB_DEFAULTS.titleColor))
+end
+
+
 -- Toggle movable anchor
 local function CreateMainFrame()
     if mainFrame then return end
@@ -216,7 +238,7 @@ local function CreateMainFrame()
 
     mainFrame:SetMovable(true)
     mainFrame:RegisterForDrag("LeftButton")
-    mainFrame:EnableMouse(true)
+    mainFrame:EnableMouse(false)
 
     mainFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
     mainFrame:SetScript("OnDragStop", function(self)
@@ -232,9 +254,9 @@ local function CreateMainFrame()
 
     -- Small title
     mainFrame.title = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    mainFrame.title:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 6, -4)
+    mainFrame.title:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 6, 0)
     mainFrame.title:SetText("Ella's Currency Tracker")
-
+    updateTitleColor()
     -- set initial visibility of lines
     RebuildLines()
 end
@@ -327,7 +349,7 @@ local function CreateConfigWindow()
     if configFrame and configFrame:IsShown() then return configFrame end
     if not configFrame then
         configFrame = CreateFrame("Frame", ADDON_NAME .. "Config", UIParent, BackdropTemplateMixin and "BackdropTemplate")
-        configFrame:SetSize(560, 420)
+        configFrame:SetSize(560, 450)
         configFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         configFrame:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -355,10 +377,85 @@ local function CreateConfigWindow()
         close:SetText("Close")
         close:SetScript("OnClick", function() configFrame:Hide() end)
 
+        -- Color pickers: currency font color and main title color
+        local fontLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        fontLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12, -40)
+        fontLabel:SetText("Currency Font Color:")
+
+        local fontSwatch = CreateFrame("Button", nil, configFrame)
+        fontSwatch:SetSize(20, 20)
+        fontSwatch:SetPoint("LEFT", fontLabel, "RIGHT", 8, 0)
+        fontSwatch.texture = fontSwatch:CreateTexture(nil, "BACKGROUND")
+        fontSwatch.texture:SetAllPoints()
+        local fc = EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor
+        fontSwatch.texture:SetColorTexture(fc[1], fc[2], fc[3], 1)
+        fontSwatch:SetScript("OnClick", function()
+            local r, g, b = unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor)
+            local function OnColorChanged()
+                local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+                EllasCurrencyTrackerDB.fontColor = { newR, newG, newB }
+                fontSwatch.texture:SetColorTexture(newR, newG, newB, 1)
+                RebuildLines()
+            end
+            local function OnCancel()
+                EllasCurrencyTrackerDB.fontColor = { r, g, b }
+                fontSwatch.texture:SetColorTexture(r, g, b, 1)
+                RebuildLines()
+            end
+            local options = {
+                swatchFunc = OnColorChanged,
+                opacityFunc = function() end,
+                cancelFunc = OnCancel,
+                hasOpacity = false,
+                opacity = 1,
+                r = r,
+                g = g,
+                b = b
+            }
+            ColorPickerFrame:SetupColorPickerAndShow(options)
+        end)
+
+        local titleLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        titleLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 200, -40)
+        titleLabel:SetText("Main Title Color:")
+
+        local titleSwatch = CreateFrame("Button", nil, configFrame)
+        titleSwatch:SetSize(20, 20)
+        titleSwatch:SetPoint("LEFT", titleLabel, "RIGHT", 8, 0)
+        titleSwatch.texture = titleSwatch:CreateTexture(nil, "BACKGROUND")
+        titleSwatch.texture:SetAllPoints()
+        local tc = EllasCurrencyTrackerDB.titleColor or DB_DEFAULTS.titleColor
+        titleSwatch.texture:SetColorTexture(tc[1], tc[2], tc[3], 1)
+        titleSwatch:SetScript("OnClick", function()
+            local r, g, b = unpack(EllasCurrencyTrackerDB.titleColor or DB_DEFAULTS.titleColor)
+            local function OnColorChanged()
+                local newR, newG, newB = ColorPickerFrame:GetColorRGB()
+                EllasCurrencyTrackerDB.titleColor = { newR, newG, newB }
+                titleSwatch.texture:SetColorTexture(newR, newG, newB, 1)
+                updateTitleColor()
+            end
+            local function OnCancel()
+                EllasCurrencyTrackerDB.titleColor = { r, g, b }
+                titleSwatch.texture:SetColorTexture(r, g, b, 1)
+                updateTitleColor()
+            end
+            local options = {
+                swatchFunc = OnColorChanged,
+                opacityFunc = function() end,
+                cancelFunc = OnCancel,
+                hasOpacity = false,
+                opacity = 1,
+                r = r,
+                g = g,
+                b = b
+            }
+            ColorPickerFrame:SetupColorPickerAndShow(options)
+        end)
+
         -- Filter box
         configFrame.filterBox = CreateFrame("EditBox", nil, configFrame, "InputBoxTemplate")
         configFrame.filterBox:SetSize(260, 20)
-        configFrame.filterBox:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12, -40)
+        configFrame.filterBox:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12, -68)
         configFrame.filterBox:SetAutoFocus(false)
         configFrame.filterBox:SetScript("OnTextChanged",
             function() if configFrame.UpdateList then configFrame:UpdateList() end end)
@@ -375,7 +472,7 @@ local function CreateConfigWindow()
         -- Left: discovered list
         configFrame.left = CreateFrame("Frame", nil, configFrame)
         configFrame.left:SetSize(320, 340)
-        configFrame.left:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12, -72)
+        configFrame.left:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12, -100)
         configFrame.left.buttons = {}
         -- left list FauxScrollFrame (named so the scrollbar works correctly)
         configFrame.left.scroll = CreateFrame("ScrollFrame", ADDON_NAME .. "LeftFauxScroll", configFrame.left,
@@ -384,44 +481,25 @@ local function CreateConfigWindow()
         configFrame.left.scroll:SetPoint("TOPLEFT", configFrame.left, "TOPLEFT", 6, -6)
         configFrame.left.scroll:SetPoint("BOTTOMRIGHT", configFrame.left, "BOTTOMRIGHT", -6, 6)
         local scrollLineHeight = 24
-        -- create a scroll-child so buttons are clipped to the scroll viewport
-        configFrame.left.scroll.child = CreateFrame("Frame", nil, configFrame.left.scroll)
-        configFrame.left.scroll.child:SetSize(1, 1)
-        configFrame.left.scroll:SetScrollChild(configFrame.left.scroll.child)
         -- handle vertical scrolling: use the FauxScroll helper for OnVerticalScroll
         configFrame.left.scroll:SetScript("OnVerticalScroll", function(self, offset)
             FauxScrollFrame_OnVerticalScroll(self, offset, scrollLineHeight)
             if configFrame.UpdateList then configFrame:UpdateList() end
         end)
-        -- mouse wheel: adjust the scrollbar value to prevent over-scrolling
-        configFrame.left.scroll:EnableMouseWheel(true)
-        configFrame.left.scroll:SetScript("OnMouseWheel", function(self, delta)
-            local sb = _G[self:GetName() .. "ScrollBar"]
-            if sb then
-                local minv, maxv = sb:GetMinMaxValues()
-                local step = scrollLineHeight
-                local new = sb:GetValue() - (delta * step)
-                if new < minv then new = minv end
-                if new > maxv then new = maxv end
-                sb:SetValue(new)
-                FauxScrollFrame_OnVerticalScroll(self, new, scrollLineHeight)
-                if configFrame.UpdateList then configFrame:UpdateList() end
-            end
-        end)
 
         -- Right: tracked list
         configFrame.right = CreateFrame("Frame", nil, configFrame)
         configFrame.right:SetSize(200, 340)
-        configFrame.right:SetPoint("TOPRIGHT", configFrame, "TOPRIGHT", -12, -72)
+        configFrame.right:SetPoint("TOPRIGHT", configFrame, "TOPRIGHT", -12, -100)
         configFrame.right.buttons = {}
         configFrame.right.trackedCount = configFrame.right:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         configFrame.right.trackedCount:SetPoint("TOPRIGHT", -4, 12)
         configFrame.right.trackedCount:SetText("Tracked " .. #EllasCurrencyTrackerDB.tracked .. " / 18")
 
         -- build left/right button pools
-        for i = 1, 24 do
-            -- parent each button to the scroll child so it's clipped to the scroll viewport
-            local b = CreateFrame("Button", nil, configFrame.left.scroll.child)
+        for i = 1, 14 do
+            -- parent each button to the left container (we populate visible rows manually)
+            local b = CreateFrame("Button", nil, configFrame.left)
             b:SetSize(300, 22)
             b.icon = b:CreateTexture(nil, "ARTWORK")
             b.icon:SetSize(16, 16)
@@ -503,31 +581,45 @@ local function CreateConfigWindow()
         function configFrame:UpdateList()
             local filter = (self.filterBox:GetText() or ""):lower()
             local filtered = {}
-            for i, c in ipairs(discoveredCurrencies or {}) do
-                if filter == "" or (c.name and c.name:lower():find(filter)) then
+            for _, c in ipairs(discoveredCurrencies or {}) do
+                -- if filter ~= "" then print("filter " .. filter .. " in " .. c.name:lower()) end
+                if filter == "" or (c.name and string.find(c.name:lower(), filter, 1, true) ~= nil) then
+                    -- if filter ~= "" then print("currency matched filter") end
                     tinsert(filtered, c)
                 end
             end
             local total = #filtered
             local numButtons = #self.left.buttons
             local lineHeight = 24
+            -- Ensure the faux-scroll offset is valid before updating the frame.
+            -- If the filtered total shrank below the current offset, clamp it to the max allowed.
+            local maxOffset = math.max(0, total - numButtons)
+            local curOffset = FauxScrollFrame_GetOffset(self.left.scroll) or 0
+            if curOffset > maxOffset then
+                FauxScrollFrame_SetOffset(self.left.scroll, maxOffset)
+            elseif curOffset < 0 then
+                FauxScrollFrame_SetOffset(self.left.scroll, 0)
+            end
             FauxScrollFrame_Update(self.left.scroll, total, numButtons, lineHeight)
             local offset = FauxScrollFrame_GetOffset(self.left.scroll) or 0
 
+            -- print("setting up table")
             for i = 1, numButtons do
                 local idx = offset + i
                 local b = self.left.buttons[i]
                 if idx <= total then
                     local c = filtered[idx]
-                    -- position visible button inside the scroll child's top-left
+                    -- print(c.name .. "at 4|" .. -((i - 1) * 24))
+                    -- position visible button inside the left container
                     b:ClearAllPoints()
-                    b:SetPoint("TOPLEFT", self.left.scroll.child, "TOPLEFT", 4, -((i - 1) * 24))
+                    b:SetPoint("TOPLEFT", self.left, "TOPLEFT", 4, -((i - 1) * 24))
                     if c.icon then
                         b.icon:SetTexture(c.icon); b.icon:Show()
                     else
                         b.icon:Hide()
                     end
                     b.name:SetText((c.name or "") .. " (" .. tostring(c.amount or 0) .. ")")
+                    b.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
                     b.add:SetText(IsTracked(c.id) and "Remove" or "Add")
                     local cid = c.id
                     b.add:SetScript("OnClick", function()
@@ -540,10 +632,7 @@ local function CreateConfigWindow()
                     b:Hide()
                 end
             end
-            -- update scroll child size so clipping and scrollbar range are correct
-            local childHeight = math.max(total * lineHeight, numButtons * lineHeight)
-            self.left.scroll.child:SetWidth(self.left:GetWidth() - 12)
-            self.left.scroll.child:SetHeight(childHeight)
+            -- no scroll-child; ensure buttons are placed and the faux-scroll reflects total rows
         end
 
         function configFrame:UpdateTrackedList()
@@ -563,6 +652,7 @@ local function CreateConfigWindow()
                     b.icon:Hide()
                 end
                 b.name:SetText(info and info.name or ("Currency " .. tostring(id)))
+                b.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
                 b.remove:SetText("-")
                 b.remove:SetScript("OnClick", function()
                     for idx, v in ipairs(EllasCurrencyTrackerDB.tracked) do
