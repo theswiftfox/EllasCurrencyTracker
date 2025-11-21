@@ -263,60 +263,116 @@ end
 
 -- -------- Settings Window (currency picker with filter) --------
 
--- Discover currencies:
--- Uses modern APIs when available; always falls back to scanning IDs with the wrapper GetCurrencyInfoByID.
+-- Updated to fully expand headers before collecting the list and to retry
+-- until no header remains collapsed.
+
 local function DiscoverCurrencies()
     local list = {}
 
-    -- 1) Use modern API list if available (best-effort)
-    if C_CurrencyInfo then
-        if C_CurrencyInfo.GetCurrencyListSize and C_CurrencyInfo.GetCurrencyListInfo then
-            -- Make sure all headers are expanded
-            local unexpand = {}
-            local ok, result = pcall(C_CurrencyInfo.GetCurrencyListSize)
-            if ok and type(result) == "number" and result > 0 then
-                for i = 1, result, 1 do
-                    local ok, info = pcall(C_CurrencyInfo.GetCurrencyListInfo, i)
-                    if ok and info.isHeader and not info.isHeaderExpanded and C_CurrencyInfo.ExpandCurrencyList then
-                        local _ = pcall(C_CurrencyInfo.ExpandCurrencyList, i, true)
-                        tinsert(unexpand, i)
-                    end
-                end
-            end
-            local ok, result = pcall(C_CurrencyInfo.GetCurrencyListSize)
-            if ok and type(result) == "number" and result > 0 then
-                for i = 1, result, 1 do
-                    local ok, info = pcall(C_CurrencyInfo.GetCurrencyListInfo, i)
-                    if ok and not info.isHeader then
-                        local id = info.currencyID
-                        list[id] = { id = id, name = info.name, amount = info.quantity, icon = info.iconFileID }
-                    end
-                end
-            end
-
-            for _, i in ipairs(unexpand) do
-                local _ = pcall(C_CurrencyInfo.ExpandCurrencyList, i, false)
+    if C_CurrencyInfo
+        and C_CurrencyInfo.GetCurrencyListSize
+        and C_CurrencyInfo.GetCurrencyListInfo then
+        -- Get the current set of expanded headers
+        local openedHeaders = {}
+        for i = 1, C_CurrencyInfo.GetCurrencyListSize() do
+            local ok, info = pcall(C_CurrencyInfo.GetCurrencyListInfo, i)
+            if ok and info and info.isHeader and info.isHeaderExpanded then
+                tinsert(openedHeaders, info.name)
             end
         end
+
+        -- Helper that expands every header that is still collapsed.
+        -- Returns true if we expanded at least one header.
+        local function ExpandAllHeaders()
+            local size = C_CurrencyInfo.GetCurrencyListSize()
+            local didExpand = false
+            for i = 1, size do
+                local ok, info = pcall(C_CurrencyInfo.GetCurrencyListInfo, i)
+                if ok and info and info.isHeader and not info.isHeaderExpanded then
+                    local ok2, _ = pcall(C_CurrencyInfo.ExpandCurrencyList, i, true)
+                    if ok2 then
+                        didExpand = true
+                    end
+                end
+            end
+            return didExpand
+        end
+
+        -- Re‑iterate until all headers are expanded.
+        repeat
+            local changed = ExpandAllHeaders()
+        until not changed
+
+        -- After everything is expanded, collect all non‑header entries.
+        local size = C_CurrencyInfo.GetCurrencyListSize()
+        for i = 1, size do
+            local ok, info = pcall(C_CurrencyInfo.GetCurrencyListInfo, i)
+            if ok and info and not info.isHeader then
+                local id = info.currencyID
+                list[id] = {
+                    id = id,
+                    name = info.name,
+                    amount = info.quantity,
+                    icon = info.iconFileID,
+                }
+            end
+        end
+
+        -- Helper to check if an ID exists in the table of opened headers
+        local function CurrencyInOpenedHeaders(check_id)
+            for _, id in pairs(openedHeaders) do
+                if check_id == id then
+                    return true
+                end
+            end
+            return false
+        end
+
+        -- Helper to Restore the originally opened headers.
+        local function RestoreOriginalOpenedHeaders()
+            local size = C_CurrencyInfo.GetCurrencyListSize()
+            for i = 1, size do
+                local ok, info = pcall(C_CurrencyInfo.GetCurrencyListInfo, i)
+                if ok and info and info.isHeader and info.isHeaderExpanded then
+                    if not CurrencyInOpenedHeaders(info.name) then
+                        local _ = pcall(C_CurrencyInfo.ExpandCurrencyList, i, false)
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+
+        -- Iterate until the original headers are restored
+        repeat
+            local changed2 = RestoreOriginalOpenedHeaders()
+        until not changed2
     end
 
-    -- 2) Ensure tracked currencies are present
     for _, id in ipairs(EllasCurrencyTrackerDB.tracked) do
         if not list[id] then
             local info = GetCurrencyInfoByID(id)
             if info then
-                list[id] = { id = id, name = info.name, amount = info.amount, icon = info.icon }
+                list[id] = {
+                    id = id,
+                    name = info.name,
+                    amount = info.amount,
+                    icon = info.icon,
+                }
             end
         end
     end
 
-    -- Convert to array and sort by name
     local arr = {}
     for id, info in pairs(list) do
         tinsert(arr,
-            { id = id, name = tostring(info.name or ("Currency " .. id)), amount = info.amount or 0, icon = info.icon })
+            {
+                id = id,
+                name = tostring(info.name or ("Currency " .. id)),
+                amount = info.amount or 0,
+                icon = info.icon
+            })
     end
-    -- table.sort(arr, function(a, b) return (string.lower(a.name) or "") < (string.lower(b.name) or "") end)
 
     discoveredCurrencies = arr
     return arr
