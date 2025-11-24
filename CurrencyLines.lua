@@ -156,12 +156,15 @@ local function AcquireLine(index)
         f = CreateFrame("Frame", ADDON_NAME .. "Line" .. index, mainFrame)
         f:SetSize(profile.anchor.width or DB_DEFAULTS.anchor.width, profile.lineHeight)
         -- Icon
-        f.icon = f:CreateTexture(nil, "ARTWORK")
-        f.icon:SetSize(profile.lineHeight - 4, profile.lineHeight - 4)
-        f.icon:SetPoint("RIGHT", -2, 0)
+        f.iconFrame = CreateFrame("Frame", nil, f)
+        f.iconFrame.icon = f.iconFrame:CreateTexture(nil, "ARTWORK")
+        f.iconFrame.icon:SetSize(profile.lineHeight - 4, profile.lineHeight - 4)
+        f.iconFrame.icon:SetPoint("CENTER", 0, 0)
+        f.iconFrame:SetSize(profile.lineHeight - 4, profile.lineHeight - 4)
+        f.iconFrame:SetPoint("RIGHT", -2, 0)
         -- Amount
         f.amount = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        f.amount:SetPoint("RIGHT", f.icon, "LEFT", -6, 0)
+        f.amount:SetPoint("RIGHT", f.iconFrame, "LEFT", -6, 0)
         f.amount:SetJustifyH("RIGHT")
         -- Name
         f.name = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -197,10 +200,11 @@ local function RebuildLines()
             local line = AcquireLine(i)
             line:SetSize(mainFrame:GetWidth(), lineHeight)
             if info.icon then
-                line.icon:SetTexture(info.icon)
-                line.icon:Show()
+                line.iconFrame.icon:SetTexture(info.icon)
+                line.iconFrame.icon:Show()
+                line.iconFrame:Show()
             else
-                line.icon:Hide()
+                line.iconFrame:Hide()
             end
             line.amount:SetFont(profile.font, 12)
             line.amount:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
@@ -244,10 +248,11 @@ local function UpdateAll()
         local line = framePool[i]
         if line and info then
             if info.icon then
-                line.icon:SetTexture(info.icon)
-                line.icon:Show()
+                line.iconFrame.icon:SetTexture(info.icon)
+                line.iconFrame.icon:Show()
+                line.iconFrame:Show()
             else
-                line.icon:Hide()
+                line.iconFrame:Hide()
             end
             line.amount:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
             line.amount:SetText(tostring(info.amount))
@@ -1112,10 +1117,11 @@ end)
 
 -- Tooltip interaction for convenience (show currency tooltip)
 local function ShowCurrencyTooltip(self)
-    if not self.id then return end
+    local parent = self:GetParent()
+    if not parent and not parent.id then return end
     if GameTooltip then
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        local info = GetCurrencyInfoByID(self.id)
+        local info = GetCurrencyInfoByID(parent.id)
         if info and info.id then
             local link
             if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyLink then
@@ -1138,11 +1144,11 @@ do
     local origAcquire = AcquireLine
     AcquireLine = function(index)
         local l = origAcquire(index)
-        if not l._tooltipHooked then
-            l:EnableMouse(true)
-            l:SetScript("OnEnter", ShowCurrencyTooltip)
-            l:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-            l._tooltipHooked = true
+        if not l.iconFrame._tooltipHooked then
+            l.iconFrame:EnableMouse(true)
+            l.iconFrame:SetScript("OnEnter", ShowCurrencyTooltip)
+            l.iconFrame:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+            l.iconFrame._tooltipHooked = true
         end
         return l
     end
