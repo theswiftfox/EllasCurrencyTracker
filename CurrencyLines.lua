@@ -14,20 +14,89 @@ local DB_DEFAULTS = {
 }
 
 -- Saved variables table (populated by WoW with EllasCurrencyTrackerDB)
-EllasCurrencyTrackerDB = EllasCurrencyTrackerDB or {}
+EllasCurrencyTrackerDB = EllasCurrencyTrackerDB or {
+    profiles = {
+        -- "Realm – Character" = {
+        --     tracked = {1220, 1273},
+        --     grow = "DOWN",
+        --     anchor = {...},
+        --     lineHeight = 20,
+        --     font = ...,
+        --     fontColor = {...},
+        --     titleColor = {...}
+        -- }
+    },
+}
+EllasCurrencyCharacterProfile = EllasCurrencyCharacterProfile or {
+    activeProfile = "default",
+}
 
--- Helper: ensure defaults exist
-local function InitDB()
-    if not EllasCurrencyTrackerDB.tracked then EllasCurrencyTrackerDB.tracked = DB_DEFAULTS.tracked end
-    if not EllasCurrencyTrackerDB.grow then EllasCurrencyTrackerDB.grow = DB_DEFAULTS.grow end
-    if not EllasCurrencyTrackerDB.anchor then EllasCurrencyTrackerDB.anchor = DB_DEFAULTS.anchor end
-    if not EllasCurrencyTrackerDB.lineHeight then EllasCurrencyTrackerDB.lineHeight = DB_DEFAULTS.lineHeight end
-    if not EllasCurrencyTrackerDB.font then EllasCurrencyTrackerDB.font = DB_DEFAULTS.font end
-    if not EllasCurrencyTrackerDB.fontColor then EllasCurrencyTrackerDB.fontColor = DB_DEFAULTS.fontColor end
-    if not EllasCurrencyTrackerDB.titleColor then EllasCurrencyTrackerDB.titleColor = DB_DEFAULTS.titleColor end
+-- Create a shallow copy of a table
+local function copyTable(t)
+    local nt = {}
+    for k, v in pairs(t) do nt[k] = v end
+    return nt
 end
 
-InitDB()
+local function defaultProfile()
+    return {
+        tracked = {},
+        grow = DB_DEFAULTS.grow,
+        anchor = copyTable(DB_DEFAULTS.anchor),
+        lineHeight = DB_DEFAULTS.lineHeight,
+        font = DB_DEFAULTS.font,
+        fontColor = copyTable(DB_DEFAULTS.fontColor),
+        titleColor = copyTable(DB_DEFAULTS.titleColor),
+    }
+end
+
+local function InitDB()
+    if EllasCurrencyTrackerDB.profiles == nil then
+        EllasCurrencyTrackerDB.profiles = {}
+    end
+    if EllasCurrencyTrackerDB.profiles["default"] == nil then
+        EllasCurrencyTrackerDB.profiles["default"] = defaultProfile()
+    end
+
+    if EllasCurrencyCharacterProfile == nil then
+        EllasCurrencyCharacterProfile = {}
+    end
+    if EllasCurrencyCharacterProfile.activeProfile == nil then
+        EllasCurrencyCharacterProfile.activeProfile = "default"
+    end
+end
+
+-- Unique key for the current character
+local function GetCharacterKey()
+    return (GetRealmName() or "") .. " – " .. (UnitName("player") or "unknown")
+end
+
+-- Helper to fetch the profile table
+local function CurrentProfile()
+    return EllasCurrencyTrackerDB.profiles[EllasCurrencyCharacterProfile.activeProfile]
+end
+
+-- Load / create the profile for the current character
+local function CreateProfile(name, copy)
+    copy = copy or false
+    if EllasCurrencyTrackerDB.profiles[name] == nil then
+        if copy then
+            local from = CurrentProfile()
+            EllasCurrencyTrackerDB.profiles[name] = {
+                tracked = copyTable(from.tracked),
+                grow = from.grow,
+                anchor = copyTable(from.anchor),
+                lineHeight = from.lineHeight,
+                font = from.font,
+                fontColor = copyTable(from.fontColor),
+                titleColor = copyTable(from.titleColor)
+            }
+        else
+            EllasCurrencyTrackerDB.profiles[name] = defaultProfile()
+        end
+    end
+    EllasCurrencyCharacterProfile.activeProfile = name
+end
 
 local framePool = {} -- pool of line frames
 local mainFrame
@@ -80,11 +149,12 @@ local function AcquireLine(index)
     if f and f:IsShown() then return f end
 
     if not f then
+        local profile = CurrentProfile()
         f = CreateFrame("Frame", ADDON_NAME .. "Line" .. index, mainFrame)
-        f:SetSize(EllasCurrencyTrackerDB.anchor.width or DB_DEFAULTS.anchor.width, EllasCurrencyTrackerDB.lineHeight)
+        f:SetSize(profile.anchor.width or DB_DEFAULTS.anchor.width, profile.lineHeight)
         -- Icon
         f.icon = f:CreateTexture(nil, "ARTWORK")
-        f.icon:SetSize(EllasCurrencyTrackerDB.lineHeight - 4, EllasCurrencyTrackerDB.lineHeight - 4)
+        f.icon:SetSize(profile.lineHeight - 4, profile.lineHeight - 4)
         f.icon:SetPoint("RIGHT", -2, 0)
         -- Amount
         f.amount = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -110,11 +180,12 @@ end
 -- Rebuild the displayed lines from the tracked list
 local function RebuildLines()
     if not mainFrame then return end
-    local tracked = EllasCurrencyTrackerDB.tracked
+    local profile = CurrentProfile()
+    local tracked = profile.tracked
     local N = #tracked
     local spacing = 0
-    local lineHeight = EllasCurrencyTrackerDB.lineHeight or DB_DEFAULTS.lineHeight
-    mainFrame:SetWidth(EllasCurrencyTrackerDB.anchor.width or DB_DEFAULTS.anchor.width)
+    local lineHeight = profile.lineHeight or DB_DEFAULTS.lineHeight
+    mainFrame:SetWidth(profile.anchor.width or DB_DEFAULTS.anchor.width)
     -- Arrange lines
     for i = 1, N do
         local id = tracked[i]
@@ -128,17 +199,17 @@ local function RebuildLines()
             else
                 line.icon:Hide()
             end
-            line.amount:SetFont(EllasCurrencyTrackerDB.font, 12)
-            line.amount:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.amount:SetFont(profile.font, 12)
+            line.amount:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
             line.amount:SetText(tostring(info.amount))
 
-            line.name:SetFont(EllasCurrencyTrackerDB.font, 12)
-            line.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.name:SetFont(profile.font, 12)
+            line.name:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
             line.name:SetText(("%s"):format(info.name or ("Currency " .. id)))
             line.id = id
 
             line:ClearAllPoints()
-            if EllasCurrencyTrackerDB.grow == "UP" then
+            if profile.grow == "UP" then
                 if i == 1 then
                     line:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 4, 16)
                 else
@@ -162,7 +233,8 @@ end
 
 -- Update all lines' amounts and icons (call when currency changes)
 local function UpdateAll()
-    local tracked = EllasCurrencyTrackerDB.tracked
+    local profile = CurrentProfile()
+    local tracked = profile.tracked
     for i = 1, #tracked do
         local id = tracked[i]
         local info = GetCurrencyInfoByID(id)
@@ -174,10 +246,10 @@ local function UpdateAll()
             else
                 line.icon:Hide()
             end
-            line.amount:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.amount:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
             line.amount:SetText(tostring(info.amount))
 
-            line.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+            line.name:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
             line.name:SetText(("%s"):format(info.name or ("Currency " .. id)))
         end
     end
@@ -196,24 +268,26 @@ end
 
 -- Add a currency to track
 local function AddCurrency(id)
+    local profile = CurrentProfile()
     if not id then return false, "invalid id" end
-    if EllasCurrencyTrackerDB.tracked and #EllasCurrencyTrackerDB.tracked > 18 then
+    if profile.tracked and #profile.tracked > 18 then
         return false, "Limit of 18 tracked currencies reached"
     end
-    for _, v in ipairs(EllasCurrencyTrackerDB.tracked) do
+    for _, v in ipairs(profile.tracked) do
         if v == id then return false, "already tracked" end
     end
-    tinsert(EllasCurrencyTrackerDB.tracked, id)
+    tinsert(profile.tracked, id)
     RebuildLines()
     return true
 end
 
 -- Remove currency
 local function RemoveCurrency(id)
+    local profile = CurrentProfile()
     if not id then return false, "invalid id" end
-    for i, v in ipairs(EllasCurrencyTrackerDB.tracked) do
+    for i, v in ipairs(profile.tracked) do
         if v == id then
-            tremove(EllasCurrencyTrackerDB.tracked, i)
+            tremove(profile.tracked, i)
             RebuildLines()
             return true
         end
@@ -222,7 +296,37 @@ local function RemoveCurrency(id)
 end
 
 local function updateTitleColor()
-    mainFrame.title:SetTextColor(unpack(EllasCurrencyTrackerDB.titleColor or DB_DEFAULTS.titleColor))
+    local profile = CurrentProfile()
+    mainFrame.title:SetTextColor(unpack(profile.titleColor or DB_DEFAULTS.titleColor))
+end
+
+local function UpdateMainFrame()
+    if not mainFrame then return end
+    local profile = CurrentProfile()
+    mainFrame:SetSize(profile.anchor.width, 100)
+    mainFrame:SetPoint(profile.anchor.point, UIParent,
+        profile.anchor.relativePoint, profile.anchor.x,
+        profile.anchor.y)
+    mainFrame:SetScale(profile.anchor.scale or 1)
+
+    mainFrame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, relativePoint, x, y = self:GetPoint(1)
+        profile.anchor.point = point
+        profile.anchor.relativePoint = relativePoint
+        profile.anchor.x = x
+        profile.anchor.y = y
+        profile.anchor.width = mainFrame:GetWidth()
+        profile.anchor.scale = mainFrame:GetScale()
+    end)
+
+    -- title
+    mainFrame.title = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    mainFrame.title:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 6, 0)
+    mainFrame.title:SetText("Ella's Currency Tracker")
+    updateTitleColor()
+    -- set initial visibility of lines
+    RebuildLines()
 end
 
 
@@ -230,35 +334,158 @@ end
 local function CreateMainFrame()
     if mainFrame then return end
     mainFrame = CreateFrame("Frame", ADDON_NAME .. "MainFrame", UIParent)
-    mainFrame:SetSize(EllasCurrencyTrackerDB.anchor.width or DB_DEFAULTS.anchor.width, 100)
-    mainFrame:SetPoint(EllasCurrencyTrackerDB.anchor.point or "CENTER", UIParent,
-        EllasCurrencyTrackerDB.anchor.relativePoint or "CENTER", EllasCurrencyTrackerDB.anchor.x or 0,
-        EllasCurrencyTrackerDB.anchor.y or 0)
-    mainFrame:SetScale(EllasCurrencyTrackerDB.anchor.scale or 1)
 
     mainFrame:SetMovable(true)
     mainFrame:RegisterForDrag("LeftButton")
     mainFrame:EnableMouse(false)
 
     mainFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    mainFrame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, _, relativePoint, x, y = self:GetPoint(1)
-        EllasCurrencyTrackerDB.anchor.point = point
-        EllasCurrencyTrackerDB.anchor.relativePoint = relativePoint
-        EllasCurrencyTrackerDB.anchor.x = x
-        EllasCurrencyTrackerDB.anchor.y = y
-        EllasCurrencyTrackerDB.anchor.width = mainFrame:GetWidth()
-        EllasCurrencyTrackerDB.anchor.scale = mainFrame:GetScale()
-    end)
 
-    -- Small title
-    mainFrame.title = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    mainFrame.title:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 6, 0)
-    mainFrame.title:SetText("Ella's Currency Tracker")
-    updateTitleColor()
-    -- set initial visibility of lines
-    RebuildLines()
+    UpdateMainFrame()
+end
+
+-- -------- Profiles Window ---------------------------------------
+
+-- Profile manager window (singleton)
+local profileFrame = nil
+
+-- Refresh the dropdown list whenever profiles change
+local function RefreshProfileDropdown(dropdown)
+    if not dropdown then return end
+    dropdown:SetSize(160, 30)
+    UIDropDownMenu_Initialize(dropdown, function(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+        for name, _ in pairs(EllasCurrencyTrackerDB.profiles) do
+            info.text = name
+            info.value = name
+            info.checked = name == EllasCurrencyCharacterProfile.activeProfile
+            info.func = function(v) -- called when a name is clicked
+                EllasCurrencyCharacterProfile.activeProfile = v.value
+                self.selectedName = EllasCurrencyCharacterProfile.activeProfile
+                self.selectedValue = EllasCurrencyCharacterProfile.activeProfile
+                UIDropDownMenu_SetSelectedValue(self, EllasCurrencyCharacterProfile.activeProfile)
+                UpdateMainFrame()
+            end
+            UIDropDownMenu_AddButton(info, level)
+        end
+    end)
+    dropdown.selectedName = EllasCurrencyCharacterProfile.activeProfile
+    dropdown.selectedValue = EllasCurrencyCharacterProfile.activeProfile
+    UIDropDownMenu_SetSelectedValue(dropdown, EllasCurrencyCharacterProfile.activeProfile)
+    -- UIDropDownMenu_JustifyText(dropdown, "CENTER")
+end
+
+local function ShowProfileManager()
+    if profileFrame and profileFrame:IsShown() then
+        profileFrame:Raise()
+        return
+    end
+
+    if not profileFrame then
+        profileFrame = CreateFrame("Frame", ADDON_NAME .. "ProfileMgr", UIParent,
+            BackdropTemplateMixin and "BackdropTemplate")
+        profileFrame:SetSize(350, 250)
+        profileFrame:SetPoint("CENTER")
+        profileFrame:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            edgeSize = 12,
+            insets = { left = 6, right = 6, top = 6, bottom = 6 },
+        })
+        profileFrame:SetMovable(true)
+        profileFrame:EnableMouse(true)
+        profileFrame:RegisterForDrag("LeftButton")
+        profileFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+        profileFrame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+
+        -- Title
+        profileFrame.title = profileFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        profileFrame.title:SetPoint("TOPLEFT", profileFrame, "TOPLEFT", 12, -10)
+        profileFrame.title:SetText("Profile Manager")
+
+        -- Dropdown: choose profile
+        profileFrame.dropdown = CreateFrame("Button", nil, profileFrame, "UIDropDownMenuTemplate")
+        profileFrame.dropdown:SetPoint("TOPLEFT", profileFrame, "TOPLEFT", 0, -40)
+        RefreshProfileDropdown(profileFrame.dropdown)
+
+        -- Label for new profile name
+        profileFrame.newNameLabel = profileFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        profileFrame.newNameLabel:SetPoint("TOPLEFT", profileFrame, "TOPLEFT", 20, -80)
+        profileFrame.newNameLabel:SetText("New Profile:")
+
+        -- Editbox: new profile name
+        profileFrame.newName = CreateFrame("EditBox", nil, profileFrame, "InputBoxTemplate")
+        profileFrame.newName:SetSize(200, 20)
+        profileFrame.newName:SetPoint("TOPLEFT", profileFrame.newNameLabel, "BOTTOMLEFT", 0, -5)
+        profileFrame.newName:SetAutoFocus(false)
+
+        -- Buttons
+        local buttonSize = 80
+        local buttonPad = 6
+
+        local addBtn = CreateFrame("Button", nil, profileFrame, "UIPanelButtonTemplate")
+        addBtn:SetSize(buttonSize, 22)
+        addBtn:SetPoint("TOPLEFT", profileFrame.newName, "TOPRIGHT", buttonPad)
+        addBtn:SetText("Add")
+        addBtn:SetScript("OnClick", function()
+            local name = profileFrame.newName:GetText()
+            if name == "" then
+                print("EllasCurrencyTracker: Using character name template")
+                name = GetCharacterKey()
+            end
+            if EllasCurrencyTrackerDB.profiles[name] then
+                print("EllasCurrencyTracker: Profile '" .. name .. "' already exists.")
+                return
+            end
+            CreateProfile(name, nil)
+            RefreshProfileDropdown(profileFrame.dropdown)
+            UpdateMainFrame()
+        end)
+
+        local copyBtn = CreateFrame("Button", nil, profileFrame, "UIPanelButtonTemplate")
+        copyBtn:SetSize(buttonSize, 22)
+        copyBtn:SetPoint("TOPLEFT", profileFrame.dropdown, "TOPRIGHT", buttonPad, 0)
+        copyBtn:SetText("Copy")
+        copyBtn:SetScript("OnClick", function()
+            local name = profileFrame.newName:GetText()
+            if name == "" then
+                print("EllasCurrencyTracker: Using character name template")
+                name = GetCharacterKey()
+            end
+            if EllasCurrencyTrackerDB.profiles[name] then
+                print("EllasCurrencyTracker: Profile '" .. name .. "' already exists.")
+                return
+            end
+            CreateProfile(name, true)
+            RefreshProfileDropdown(profileFrame.dropdown)
+            UpdateMainFrame()
+        end)
+
+        local delBtn = CreateFrame("Button", nil, profileFrame, "UIPanelButtonTemplate")
+        delBtn:SetSize(buttonSize, 22)
+        delBtn:SetPoint("TOPLEFT", copyBtn, "TOPRIGHT", buttonPad, 0)
+        delBtn:SetText("Delete")
+        delBtn:SetScript("OnClick", function()
+            local name = EllasCurrencyCharacterProfile.activeProfile
+            if name == "default" then
+                print("EllasCurrencyTracker: Cannot delete default profile.")
+            end
+            EllasCurrencyTrackerDB.profiles[name] = nil
+            EllasCurrencyCharacterProfile.activeProfile = "default"
+            RefreshProfileDropdown(profileFrame.dropdown)
+            UpdateMainFrame()
+        end)
+
+        -- Close button
+        local close = CreateFrame("Button", nil, profileFrame, "UIPanelButtonTemplate")
+        close:SetSize(70, 22)
+        close:SetPoint("BOTTOMRIGHT", profileFrame, "BOTTOMRIGHT", -10, 10)
+        close:SetText("Close")
+        close:SetScript("OnClick", function() profileFrame:Hide() end)
+    end
+
+    profileFrame:Show()
+    profileFrame:Raise()
 end
 
 -- -------- Settings Window (currency picker with filter) --------
@@ -349,7 +576,8 @@ local function DiscoverCurrencies()
         until not changed2
     end
 
-    for _, id in ipairs(EllasCurrencyTrackerDB.tracked) do
+    local profile = CurrentProfile()
+    for _, id in ipairs(profile.tracked) do
         if not list[id] then
             local info = GetCurrencyInfoByID(id)
             if info then
@@ -384,7 +612,8 @@ local configFrame = nil
 local dragState = { active = false, from = nil, target = nil }
 
 local function IsTracked(id)
-    for _, v in ipairs(EllasCurrencyTrackerDB.tracked) do if v == id then return true end end
+    local profile = CurrentProfile()
+    for _, v in ipairs(profile.tracked) do if v == id then return true end end
     return false
 end
 
@@ -403,6 +632,7 @@ end
 -- Settings window: simple list UI
 local function CreateConfigWindow()
     if configFrame and configFrame:IsShown() then return configFrame end
+    local profile = CurrentProfile()
     if not configFrame then
         configFrame = CreateFrame("Frame", ADDON_NAME .. "Config", UIParent, BackdropTemplateMixin and "BackdropTemplate")
         configFrame:SetSize(560, 450)
@@ -443,18 +673,18 @@ local function CreateConfigWindow()
         fontSwatch:SetPoint("LEFT", fontLabel, "RIGHT", 8, 0)
         fontSwatch.texture = fontSwatch:CreateTexture(nil, "BACKGROUND")
         fontSwatch.texture:SetAllPoints()
-        local fc = EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor
+        local fc = profile.fontColor or DB_DEFAULTS.fontColor
         fontSwatch.texture:SetColorTexture(fc[1], fc[2], fc[3], 1)
         fontSwatch:SetScript("OnClick", function()
-            local r, g, b = unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor)
+            local r, g, b = unpack(profile.fontColor or DB_DEFAULTS.fontColor)
             local function OnColorChanged()
                 local newR, newG, newB = ColorPickerFrame:GetColorRGB()
-                EllasCurrencyTrackerDB.fontColor = { newR, newG, newB }
+                profile.fontColor = { newR, newG, newB }
                 fontSwatch.texture:SetColorTexture(newR, newG, newB, 1)
                 RebuildLines()
             end
             local function OnCancel()
-                EllasCurrencyTrackerDB.fontColor = { r, g, b }
+                profile.fontColor = { r, g, b }
                 fontSwatch.texture:SetColorTexture(r, g, b, 1)
                 RebuildLines()
             end
@@ -480,18 +710,18 @@ local function CreateConfigWindow()
         titleSwatch:SetPoint("LEFT", titleLabel, "RIGHT", 8, 0)
         titleSwatch.texture = titleSwatch:CreateTexture(nil, "BACKGROUND")
         titleSwatch.texture:SetAllPoints()
-        local tc = EllasCurrencyTrackerDB.titleColor or DB_DEFAULTS.titleColor
+        local tc = profile.titleColor or DB_DEFAULTS.titleColor
         titleSwatch.texture:SetColorTexture(tc[1], tc[2], tc[3], 1)
         titleSwatch:SetScript("OnClick", function()
-            local r, g, b = unpack(EllasCurrencyTrackerDB.titleColor or DB_DEFAULTS.titleColor)
+            local r, g, b = unpack(profile.titleColor or DB_DEFAULTS.titleColor)
             local function OnColorChanged()
                 local newR, newG, newB = ColorPickerFrame:GetColorRGB()
-                EllasCurrencyTrackerDB.titleColor = { newR, newG, newB }
+                profile.titleColor = { newR, newG, newB }
                 titleSwatch.texture:SetColorTexture(newR, newG, newB, 1)
                 updateTitleColor()
             end
             local function OnCancel()
-                EllasCurrencyTrackerDB.titleColor = { r, g, b }
+                profile.titleColor = { r, g, b }
                 titleSwatch.texture:SetColorTexture(r, g, b, 1)
                 updateTitleColor()
             end
@@ -550,7 +780,7 @@ local function CreateConfigWindow()
         configFrame.right.buttons = {}
         configFrame.right.trackedCount = configFrame.right:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         configFrame.right.trackedCount:SetPoint("TOPRIGHT", -4, 12)
-        configFrame.right.trackedCount:SetText("Tracked " .. #EllasCurrencyTrackerDB.tracked .. " / 18")
+        configFrame.right.trackedCount:SetText("Tracked " .. #profile.tracked .. " / 18")
 
         -- build left/right button pools
         for i = 1, 14 do
@@ -591,7 +821,7 @@ local function CreateConfigWindow()
             local idx = i
             b:SetScript("OnDragStart", function(self)
                 -- begin drag
-                if not EllasCurrencyTrackerDB.tracked or #EllasCurrencyTrackerDB.tracked < 2 then return end
+                if not profile.tracked or #profile.tracked < 2 then return end
                 dragState.active = true
                 dragState.from = idx
                 dragState.target = nil
@@ -605,12 +835,12 @@ local function CreateConfigWindow()
                     local to = dragState.target or from
                     dragState.active = false
                     dragState.from = nil
-                    if from and to and from ~= to and EllasCurrencyTrackerDB.tracked[from] then
-                        local val = tremove(EllasCurrencyTrackerDB.tracked, from)
+                    if from and to and from ~= to and profile.tracked[from] then
+                        local val = tremove(profile.tracked, from)
                         if not val then return end
                         -- insert at new position; if inserting after removal, adjust if necessary
-                        if to > #EllasCurrencyTrackerDB.tracked + 1 then to = #EllasCurrencyTrackerDB.tracked + 1 end
-                        tinsert(EllasCurrencyTrackerDB.tracked, to, val)
+                        if to > #profile.tracked + 1 then to = #profile.tracked + 1 end
+                        tinsert(profile.tracked, to, val)
                         RebuildLines()
                         if configFrame and configFrame.UpdateTrackedList then configFrame:UpdateTrackedList() end
                         if configFrame and configFrame.UpdateList then configFrame:UpdateList() end
@@ -675,7 +905,7 @@ local function CreateConfigWindow()
                         b.icon:Hide()
                     end
                     b.name:SetText((c.name or "") .. " (" .. tostring(c.amount or 0) .. ")")
-                    b.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+                    b.name:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
                     b.add:SetText(IsTracked(c.id) and "Remove" or "Add")
                     local cid = c.id
                     b.add:SetScript("OnClick", function()
@@ -692,7 +922,7 @@ local function CreateConfigWindow()
         end
 
         function configFrame:UpdateTrackedList()
-            local tracked = EllasCurrencyTrackerDB.tracked or {}
+            local tracked = profile.tracked or {}
             self.right.trackedCount:SetText("Tracked " .. #tracked .. " / 18")
             for i = 1, #self.right.buttons do self.right.buttons[i]:Hide() end
             for i = 1, #tracked do
@@ -708,12 +938,12 @@ local function CreateConfigWindow()
                     b.icon:Hide()
                 end
                 b.name:SetText(info and info.name or ("Currency " .. tostring(id)))
-                b.name:SetTextColor(unpack(EllasCurrencyTrackerDB.fontColor or DB_DEFAULTS.fontColor))
+                b.name:SetTextColor(unpack(profile.fontColor or DB_DEFAULTS.fontColor))
                 b.remove:SetText("-")
                 b.remove:SetScript("OnClick", function()
-                    for idx, v in ipairs(EllasCurrencyTrackerDB.tracked) do
+                    for idx, v in ipairs(profile.tracked) do
                         if v == id then
-                            tremove(EllasCurrencyTrackerDB.tracked, idx); break
+                            tremove(profile.tracked, idx); break
                         end
                     end
                     RebuildLines()
@@ -732,7 +962,6 @@ local function CreateConfigWindow()
     return configFrame
 end
 
--- (removed stray unused placeholder for a list frame)
 local anchorUnlocked = false
 local function ToggleAnchor()
     if not mainFrame then CreateMainFrame() end
@@ -754,11 +983,12 @@ local function PrintHelp()
     print("/ect grow up|down - set growth direction")
     print("/ect config - open config window")
     print("/ect anchor - toggle anchor move mode")
-    print("/ect reset - reset settings")
+    print("/ect reset - reset current profile")
 end
 
 SLASH_ELLASCURRENCY1 = "/ect"
 SlashCmdList["ELLASCURRENCY"] = function(msg)
+    local profile = CurrentProfile()
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
     if cmd == "add" and rest ~= "" then
@@ -782,11 +1012,11 @@ SlashCmdList["ELLASCURRENCY"] = function(msg)
         local ok, err = RemoveCurrency(id)
         if ok then print("EllasCurrencyTracker: Removed " .. id) else print("EllasCurrencyTracker: " .. (err or "failed")) end
     elseif cmd == "list" then
-        if #EllasCurrencyTrackerDB.tracked == 0 then
+        if #profile.tracked == 0 then
             print("EllasCurrencyTracker: no currencies tracked.")
         else
             print("EllasCurrencyTracker tracked:")
-            for i, id in ipairs(EllasCurrencyTrackerDB.tracked) do
+            for i, id in ipairs(profile.tracked) do
                 local info = GetCurrencyInfoByID(id)
                 if info then
                     print(("[%d] %s - id:%d amount:%s"):format(i, info.name or "?", id, tostring(info.amount)))
@@ -796,7 +1026,7 @@ SlashCmdList["ELLASCURRENCY"] = function(msg)
     elseif cmd == "grow" and rest ~= "" then
         local dir = rest:upper()
         if dir == "UP" or dir == "DOWN" then
-            EllasCurrencyTrackerDB.grow = dir
+            profile.grow = dir
             print("EllasCurrencyTracker: growth set to " .. dir)
             RebuildLines()
         else
@@ -812,16 +1042,19 @@ SlashCmdList["ELLASCURRENCY"] = function(msg)
             configFrame:Raise()
         end
     elseif cmd == "reset" then
-        EllasCurrencyTrackerDB.tracked = {}
-        EllasCurrencyTrackerDB.grow = DB_DEFAULTS.grow
-        EllasCurrencyTrackerDB.anchor = DB_DEFAULTS.anchor
-        EllasCurrencyTrackerDB.lineHeight = DB_DEFAULTS.lineHeight
+        profile.tracked = {}
+        profile.grow = DB_DEFAULTS.grow
+        profile.anchor = DB_DEFAULTS.anchor
+        profile.lineHeight = DB_DEFAULTS.lineHeight
         print("EllasCurrencyTracker: settings reset. Reloading frame.")
         if mainFrame then
             mainFrame:Hide(); mainFrame = nil
         end
         CreateMainFrame()
         RebuildLines()
+    elseif cmd == "profile" then
+        ShowProfileManager()
+        return
     elseif cmd == "help" or cmd == "" then
         PrintHelp()
     else
