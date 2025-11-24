@@ -101,6 +101,9 @@ end
 local framePool = {} -- pool of line frames
 local mainFrame
 
+-- Settings window frame (singleton)
+local configFrame = nil
+
 -- Local cache of discovered currencies (reset each session)
 local discoveredCurrencies = {} -- array of { id = id, name = name, amount = amount, icon = icon }
 
@@ -303,7 +306,7 @@ end
 local function UpdateMainFrame()
     if not mainFrame then return end
     local profile = CurrentProfile()
-    mainFrame:SetSize(profile.anchor.width, 100)
+    mainFrame:SetSize(profile.anchor.width, 200)
     mainFrame:SetPoint(profile.anchor.point, UIParent,
         profile.anchor.relativePoint, profile.anchor.x,
         profile.anchor.y)
@@ -333,7 +336,17 @@ end
 -- Toggle movable anchor
 local function CreateMainFrame()
     if mainFrame then return end
-    mainFrame = CreateFrame("Frame", ADDON_NAME .. "MainFrame", UIParent)
+    mainFrame = CreateFrame("Frame", ADDON_NAME .. "MainFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate")
+    mainFrame:SetBackdrop({
+        bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+        edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    mainFrame:SetBackdropColor(0, 0, 0, 0)
+    mainFrame:SetBackdropBorderColor(0, 0, 0, 0)
 
     mainFrame:SetMovable(true)
     mainFrame:RegisterForDrag("LeftButton")
@@ -376,6 +389,9 @@ local function RefreshProfileDropdown(dropdown)
 end
 
 local function ShowProfileManager()
+    if configFrame and configFrame:IsShown() then
+        configFrame:Hide()
+    end
     if profileFrame and profileFrame:IsShown() then
         profileFrame:Raise()
         return
@@ -437,9 +453,10 @@ local function ShowProfileManager()
                 print("EllasCurrencyTracker: Profile '" .. name .. "' already exists.")
                 return
             end
-            CreateProfile(name, nil)
+            CreateProfile(name)
             RefreshProfileDropdown(profileFrame.dropdown)
             UpdateMainFrame()
+            configFrame = nil
         end)
 
         local copyBtn = CreateFrame("Button", nil, profileFrame, "UIPanelButtonTemplate")
@@ -459,6 +476,7 @@ local function ShowProfileManager()
             CreateProfile(name, true)
             RefreshProfileDropdown(profileFrame.dropdown)
             UpdateMainFrame()
+            configFrame = nil
         end)
 
         local delBtn = CreateFrame("Button", nil, profileFrame, "UIPanelButtonTemplate")
@@ -474,6 +492,7 @@ local function ShowProfileManager()
             EllasCurrencyCharacterProfile.activeProfile = "default"
             RefreshProfileDropdown(profileFrame.dropdown)
             UpdateMainFrame()
+            configFrame = nil
         end)
 
         -- Close button
@@ -606,8 +625,6 @@ local function DiscoverCurrencies()
     return arr
 end
 
--- Settings window frame (singleton)
-local configFrame = nil
 -- Drag state for reordering tracked list
 local dragState = { active = false, from = nil, target = nil }
 
@@ -630,8 +647,14 @@ local function ToggleTracked(id)
 end
 
 -- Settings window: simple list UI
-local function CreateConfigWindow()
-    if configFrame and configFrame:IsShown() then return configFrame end
+local function ShowConfigWindow()
+    if profileFrame and profileFrame:IsShown() then
+        profileFrame:Hide()
+        return
+    end
+    if configFrame and configFrame:IsShown() then
+        configFrame:Raise()
+    end
     local profile = CurrentProfile()
     if not configFrame then
         configFrame = CreateFrame("Frame", ADDON_NAME .. "Config", UIParent, BackdropTemplateMixin and "BackdropTemplate")
@@ -959,7 +982,6 @@ local function CreateConfigWindow()
     configFrame:Raise()
     configFrame:UpdateList()
     configFrame:UpdateTrackedList()
-    return configFrame
 end
 
 local anchorUnlocked = false
@@ -968,8 +990,10 @@ local function ToggleAnchor()
     anchorUnlocked = not anchorUnlocked
     mainFrame:EnableMouse(anchorUnlocked)
     if anchorUnlocked then
+        mainFrame:SetBackdropColor(0, 0, 0, 0.5)
         print("EllasCurrencyTracker: Anchor unlocked. Drag the box to move it. Use /ect anchor again to lock.")
     else
+        mainFrame:SetBackdropColor(0, 0, 0, 0)
         print("EllasCurrencyTracker: Anchor locked.")
     end
 end
@@ -1036,11 +1060,8 @@ SlashCmdList["ELLASCURRENCY"] = function(msg)
         CreateMainFrame()
         ToggleAnchor()
     elseif cmd == "config" then
-        CreateConfigWindow()
-        if configFrame then
-            configFrame:Show()
-            configFrame:Raise()
-        end
+        ShowConfigWindow()
+        return
     elseif cmd == "reset" then
         profile.tracked = {}
         profile.grow = DB_DEFAULTS.grow
