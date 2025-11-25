@@ -104,6 +104,9 @@ local mainFrame
 -- Settings window frame (singleton)
 local configFrame = nil
 
+-- Anchor lock state (forward-declared so UI code can reference it)
+local anchorUnlocked = false
+
 -- Local cache of discovered currencies (reset each session)
 local discoveredCurrencies = {} -- array of { id = id, name = name, amount = amount, icon = icon }
 
@@ -358,6 +361,54 @@ local function CreateMainFrame()
     mainFrame:EnableMouse(false)
 
     mainFrame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+
+    -- Anchor handle: a small button to allow dragging without clicking inside the whole frame
+    if not mainFrame.anchorBtn then
+        local btn = CreateFrame("Button", nil, mainFrame, "UIPanelButtonTemplate")
+        btn:SetSize(18, 5)
+        btn:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", 5, 0)
+        -- small visual: use a compact built-in texture over the button area
+        btn.icon = btn:CreateTexture(nil, "ARTWORK")
+        btn.icon:SetAllPoints()
+        btn.icon:SetTexture("Interface\\Buttons\\GoldGradiant")
+        btn:EnableMouse(true)
+        btn:SetAlpha(0.7)
+        btn.icon:SetDesaturated(true)
+
+        btn:SetScript("OnMouseDown", function(self, button)
+            if anchorUnlocked then
+                mainFrame:StartMoving()
+            end
+        end)
+
+        btn:SetScript("OnMouseUp", function(self, button)
+            if anchorUnlocked then
+                mainFrame:StopMovingOrSizing()
+                -- save anchor to profile
+                local profile = CurrentProfile()
+                local point, _, relativePoint, x, y = mainFrame:GetPoint(1)
+                profile.anchor.point = point
+                profile.anchor.relativePoint = relativePoint
+                profile.anchor.x = x
+                profile.anchor.y = y
+                profile.anchor.width = mainFrame:GetWidth()
+                profile.anchor.scale = mainFrame:GetScale()
+            end
+        end)
+
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if anchorUnlocked then
+                GameTooltip:SetText("Drag to move")
+            else
+                GameTooltip:SetText("Anchor locked — use /ect anchor to unlock")
+            end
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function(self) if GameTooltip then GameTooltip:Hide() end end)
+
+        mainFrame.anchorBtn = btn
+    end
 
     UpdateMainFrame()
 end
@@ -989,17 +1040,19 @@ local function ShowConfigWindow()
     configFrame:UpdateTrackedList()
 end
 
-local anchorUnlocked = false
 local function ToggleAnchor()
     if not mainFrame then CreateMainFrame() end
     anchorUnlocked = not anchorUnlocked
     mainFrame:EnableMouse(anchorUnlocked)
-    if anchorUnlocked then
-        mainFrame:SetBackdropColor(0, 0, 0, 0.5)
-        print("EllasCurrencyTracker: Anchor unlocked. Drag the box to move it. Use /ect anchor again to lock.")
-    else
-        mainFrame:SetBackdropColor(0, 0, 0, 0)
-        print("EllasCurrencyTracker: Anchor locked.")
+    -- Update anchor button appearance if present
+    if mainFrame and mainFrame.anchorBtn then
+        if anchorUnlocked then
+            mainFrame.anchorBtn:SetAlpha(1)
+            mainFrame.anchorBtn.icon:SetDesaturated(false)
+        else
+            mainFrame.anchorBtn:SetAlpha(0.7)
+            mainFrame.anchorBtn.icon:SetDesaturated(true)
+        end
     end
 end
 
