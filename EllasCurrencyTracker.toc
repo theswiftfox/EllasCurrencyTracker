@@ -1,8 +1,12 @@
-## Interface: 120000, 110205
+## Interface: 110205, 120000, 120001
 ## Title: Ella's Currency Tracker
-## Notes: Simple currency tracker addon
+## Notes: Lightweight currency tracker with a compact, configurable overlay
 ## Author: theswiftfox
-## Version: 1.0
+## Version: 2.0
 ## SavedVariables: EllasCurrencyTrackerDB
 ## SavedVariablesPerCharacter: EllasCurrencyCharacterProfile
-CurrencyLines.lua
+## OptionalDeps: Ace3
+
+embeds.xml
+Core.lua
+Config.lua
