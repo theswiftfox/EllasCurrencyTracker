@@ -14,14 +14,14 @@
     "Lua.workspace.library": [
         "~\\.vscode\\extensions\\ketho.wow-api-0.21.0\\Annotations\\Core"
     ],
+    "Lua.workspace.ignoreDir": [
+        "Libs"
+    ],
     "Lua.diagnostics.globals": [
         "SlashCmdList",
-        "UISpecialFrames",
-        "FauxScrollFrame_Update",
-        "FauxScrollFrame_SetOffset",
-        "FauxScrollFrame_OnVerticalScroll",
-        "FauxScrollFrame_GetOffset",
-        "ColorPickerFrame"
+        "LibStub",
+        "Settings",
+        "BackdropTemplateMixin"
     ],
     "Lua.type.weakUnionCheck": true,
     "Lua.diagnostics.disable": [

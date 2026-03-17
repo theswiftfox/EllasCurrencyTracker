@@ -1,0 +1,5 @@
+# Bundled libraries (fetched via .pkgmeta during packaging)
+Libs/
+
+# Packager output
+*.zip
