@@ -336,15 +336,15 @@ local function GetOptions()
                         name  = "General",
                         order = 1,
                     },
-                    showTitle = {
-                        type  = "toggle",
-                        name  = "Show Title",
-                        desc  = "Show the addon title above the currency lines",
-                        order = 2,
-                        width = "full",
-                        get   = function() return ECT.db.profile.showTitle end,
-                        set   = function(_, val)
-                            ECT.db.profile.showTitle = val
+                    titleStyle = {
+                        type   = "select",
+                        name   = "Title Style",
+                        desc   = "How to display the addon title above the currency lines",
+                        order  = 2,
+                        values = { FULL = "Full Size", SMALL = "Small / Subtle", NONE = "Hidden" },
+                        get    = function() return ECT.db.profile.titleStyle end,
+                        set    = function(_, val)
+                            ECT.db.profile.titleStyle = val
                             ECT:UpdateMainFrame()
                         end,
                     },
@@ -360,16 +360,55 @@ local function GetOptions()
                             ECT:RebuildLines()
                         end,
                     },
+                    iconSide = {
+                        type   = "select",
+                        name   = "Icon Position",
+                        desc   = "Which side of the row to show the currency icon",
+                        order  = 4,
+                        values = { LEFT = "Left", RIGHT = "Right" },
+                        get    = function() return ECT.db.profile.iconSide end,
+                        set    = function(_, val)
+                            ECT.db.profile.iconSide = val
+                            ECT:RebuildLines()
+                        end,
+                    },
                     headerAppearance = {
                         type  = "header",
                         name  = "Appearance",
                         order = 10,
                     },
+                    bgAlpha = {
+                        type     = "range",
+                        name     = "Background Opacity",
+                        desc     = "Opacity of the overlay background (0 = invisible, 1 = opaque)",
+                        order    = 11,
+                        min      = 0,
+                        max      = 1,
+                        step     = 0.05,
+                        isPercent = true,
+                        get      = function() return ECT.db.profile.bgAlpha end,
+                        set      = function(_, val)
+                            ECT.db.profile.bgAlpha = val
+                            ECT:UpdateMainFrame()
+                        end,
+                    },
+                    altRowShading = {
+                        type  = "toggle",
+                        name  = "Alternating Row Shading",
+                        desc  = "Apply subtle alternating background shading to rows",
+                        order = 12,
+                        width = "full",
+                        get   = function() return ECT.db.profile.altRowShading end,
+                        set   = function(_, val)
+                            ECT.db.profile.altRowShading = val
+                            ECT:RebuildLines()
+                        end,
+                    },
                     fontColor = {
                         type     = "color",
                         name     = "Currency Font Color",
                         desc     = "Color for currency names and amounts",
-                        order    = 11,
+                        order    = 13,
                         hasAlpha = false,
                         get      = function()
                             local c = ECT.db.profile.fontColor
@@ -384,7 +423,7 @@ local function GetOptions()
                         type     = "color",
                         name     = "Title Color",
                         desc     = "Color for the main title text",
-                        order    = 12,
+                        order    = 14,
                         hasAlpha = false,
                         get      = function()
                             local c = ECT.db.profile.titleColor
@@ -395,16 +434,101 @@ local function GetOptions()
                             ECT:UpdateMainFrame()
                         end,
                     },
+                    headerFormatting = {
+                        type  = "header",
+                        name  = "Formatting",
+                        order = 20,
+                    },
+                    formatNumbers = {
+                        type  = "toggle",
+                        name  = "Format Numbers",
+                        desc  = "Add comma separators to large amounts (e.g. 1,234,567)",
+                        order = 21,
+                        width = "full",
+                        get   = function() return ECT.db.profile.formatNumbers end,
+                        set   = function(_, val)
+                            ECT.db.profile.formatNumbers = val
+                            ECT:RebuildLines()
+                        end,
+                    },
+                    showMax = {
+                        type  = "toggle",
+                        name  = "Show Max / Cap",
+                        desc  = "Display \"current / max\" for currencies that have a cap",
+                        order = 22,
+                        width = "full",
+                        get   = function() return ECT.db.profile.showMax end,
+                        set   = function(_, val)
+                            ECT.db.profile.showMax = val
+                            ECT:RebuildLines()
+                        end,
+                    },
+                    capWarning = {
+                        type  = "toggle",
+                        name  = "Cap Warning",
+                        desc  = "Highlight the amount in a warning color when a currency has reached its maximum cap",
+                        order = 23,
+                        width = "full",
+                        get   = function() return ECT.db.profile.capWarning end,
+                        set   = function(_, val)
+                            ECT.db.profile.capWarning = val
+                            ECT:RebuildLines()
+                        end,
+                    },
+                    capWarningColor = {
+                        type     = "color",
+                        name     = "Cap Warning Color",
+                        desc     = "Color used to highlight amounts that have reached the currency cap",
+                        order    = 24,
+                        hasAlpha = false,
+                        disabled = function() return not ECT.db.profile.capWarning end,
+                        get      = function()
+                            local c = ECT.db.profile.capWarningColor
+                            return c.r, c.g, c.b
+                        end,
+                        set      = function(_, r, g, b)
+                            ECT.db.profile.capWarningColor = { r = r, g = g, b = b }
+                            ECT:RebuildLines()
+                        end,
+                    },
+                    headerInteraction = {
+                        type  = "header",
+                        name  = "Interaction",
+                        order = 30,
+                    },
+                    rowTooltip = {
+                        type  = "toggle",
+                        name  = "Row-Wide Tooltip",
+                        desc  = "Show currency tooltip when hovering anywhere on the row (instead of only the icon)",
+                        order = 31,
+                        width = "full",
+                        get   = function() return ECT.db.profile.rowTooltip end,
+                        set   = function(_, val)
+                            ECT.db.profile.rowTooltip = val
+                        end,
+                    },
+                    mouseThrough = {
+                        type  = "toggle",
+                        name  = "Mouse-Through",
+                        desc  = "Allow mouse clicks to pass through the currency overlay",
+                        order = 32,
+                        width = "full",
+                        get   = function() return ECT.db.profile.mouseThrough end,
+                        set   = function(_, val)
+                            ECT.db.profile.mouseThrough = val
+                            ECT:RebuildLines()
+                        end,
+                    },
                     headerSize = {
                         type  = "header",
                         name  = "Sizing",
-                        order = 20,
+                        order = 40,
                     },
                     fontSize = {
                         type     = "range",
                         name     = "Font Size",
                         desc     = "Size of the currency text",
-                        order    = 21,
+                        order    = 41,
                         min      = 8,
                         max      = 20,
                         step     = 1,
@@ -418,7 +542,7 @@ local function GetOptions()
                         type     = "range",
                         name     = "Line Height",
                         desc     = "Pixel height of each currency line",
-                        order    = 22,
+                        order    = 42,
                         min      = 14,
                         max      = 36,
                         step     = 1,
@@ -432,7 +556,7 @@ local function GetOptions()
                         type     = "range",
                         name     = "Frame Width",
                         desc     = "Width of the currency overlay",
-                        order    = 23,
+                        order    = 43,
                         min      = 140,
                         max      = 400,
                         step     = 5,
@@ -446,7 +570,7 @@ local function GetOptions()
                         type      = "range",
                         name      = "Frame Scale",
                         desc      = "Overall scale of the currency overlay",
-                        order     = 24,
+                        order     = 44,
                         min       = 0.5,
                         max       = 2.0,
                         step      = 0.05,

@@ -2,7 +2,7 @@
 ## Title: Ella's Currency Tracker
 ## Notes: Lightweight currency tracker with a compact, configurable overlay
 ## Author: theswiftfox
-## Version: 2.0
+## Version: 2.1
 ## SavedVariables: EllasCurrencyTrackerDB
 ## SavedVariablesPerCharacter: EllasCurrencyCharacterProfile
 ## OptionalDeps: Ace3
