@@ -16,6 +16,7 @@ ECT.DB_DEFAULTS = {
         tracked     = {},       -- ordered array of currency IDs
         grow        = "DOWN",   -- "UP" or "DOWN"
         titleStyle  = "SMALL",  -- "FULL", "SMALL", or "NONE"
+        titleText   = "Ella's Currency Tracker",  -- customisable title text
         anchor = {
             point         = "CENTER",
             relativePoint = "CENTER",
@@ -39,6 +40,7 @@ ECT.DB_DEFAULTS = {
         rowTooltip     = true,   -- show tooltip on entire row hover (vs icon only)
         capWarning     = true,   -- highlight amount when currency is at its cap
         capWarningColor = { r = 1, g = 0.2, b = 0.2 },  -- color for capped amounts
+        collapsed       = false,  -- whether the frame is collapsed (title bar only)
     },
 }
 
@@ -307,6 +309,9 @@ end
 function ECT:RebuildLines()
     if not mainFrame then return end
     local profile = self.db.profile
+
+    -- If collapsed, don't rebuild lines — ApplyCollapsedState manages the frame
+    if profile.collapsed then return end
     local tracked = profile.tracked
     local N = #tracked
     local lineHeight = profile.lineHeight or 20
@@ -322,7 +327,7 @@ function ECT:RebuildLines()
     elseif profile.titleStyle == "SMALL" then
         titleOffset = 20   -- 4 inset + 12 title + 4 gap
     else -- "NONE"
-        titleOffset = 8    -- 4 inset + 4 pad
+        titleOffset = 20   -- 4 inset + 6 bar + 4 gap (minimal clickable strip)
     end
 
     for i = 1, N do
@@ -399,7 +404,11 @@ function ECT:RebuildLines()
 end
 
 function ECT:UpdateAll()
+    if not mainFrame then return end
     local profile = self.db.profile
+
+    -- Skip updates while collapsed — lines aren't visible
+    if profile.collapsed then return end
     local tracked = profile.tracked
     local fc = profile.fontColor
     local fontSize = profile.fontSize or 12
@@ -526,6 +535,32 @@ function ECT:CreateMainFrame()
     settingsBtn:SetFrameLevel(mainFrame:GetFrameLevel() + 4)
     mainFrame.settingsBtn = settingsBtn
 
+    -- Title click region: invisible button over the title area for collapse/expand
+    local titleBtn = CreateFrame("Button", nil, mainFrame)
+    titleBtn:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 4, -4)
+    titleBtn:SetPoint("RIGHT", settingsBtn, "LEFT", -4, 0)
+    titleBtn:SetHeight(20)
+    titleBtn:EnableMouse(true)
+
+    -- Collapse/expand indicator (small triangle next to the title)
+    titleBtn.indicator = titleBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    titleBtn.indicator:SetPoint("RIGHT", titleBtn, "RIGHT", 0, 0)
+    titleBtn.indicator:SetTextColor(1, 1, 1, 0.5)
+
+    titleBtn:SetScript("OnEnter", function(self)
+        self.indicator:SetTextColor(1, 1, 1, 1)
+    end)
+    titleBtn:SetScript("OnLeave", function(self)
+        self.indicator:SetTextColor(1, 1, 1, 0.5)
+    end)
+    titleBtn:SetScript("OnClick", function()
+        ECT:ToggleCollapse()
+    end)
+
+    -- Keep the title button above the drag bar but below the settings button
+    titleBtn:SetFrameLevel(mainFrame:GetFrameLevel() + 3)
+    mainFrame.titleBtn = titleBtn
+
     self:UpdateMainFrame()
 end
 
@@ -553,21 +588,22 @@ function ECT:UpdateMainFrame()
     end
 
     local ts = profile.titleStyle or "SMALL"
+    local titleText = profile.titleText or "Ella's Currency Tracker"
     if ts == "FULL" then
         mainFrame.title:SetFontObject(GameFontNormalLarge)
-        mainFrame.title:SetText("Ella's Currency Tracker")
+        mainFrame.title:SetText(titleText)
         mainFrame.title:SetTextColor(profile.titleColor.r, profile.titleColor.g, profile.titleColor.b)
         mainFrame.title:Show()
     elseif ts == "SMALL" then
         mainFrame.title:SetFontObject(GameFontNormalSmall)
-        mainFrame.title:SetText("Ella's Currency Tracker")
+        mainFrame.title:SetText(titleText)
         mainFrame.title:SetTextColor(profile.titleColor.r, profile.titleColor.g, profile.titleColor.b)
         mainFrame.title:Show()
     else -- "NONE"
         mainFrame.title:Hide()
     end
 
-    self:RebuildLines()
+    self:ApplyCollapsedState()
 end
 
 function ECT:ToggleAnchor()
@@ -581,6 +617,47 @@ function ECT:ToggleAnchor()
         end
     end
     self:Print(anchorUnlocked and "Anchor unlocked - drag to move" or "Anchor locked")
+end
+
+--- Apply the current collapsed/expanded visual state without toggling.
+--- Call this after CreateMainFrame or profile changes to restore the correct state.
+function ECT:ApplyCollapsedState()
+    if not mainFrame then return end
+    local profile = self.db.profile
+    local collapsed = profile.collapsed
+
+    -- Title offset (mirrors the logic in RebuildLines)
+    local titleOffset
+    if profile.titleStyle == "FULL" then
+        titleOffset = 26
+    elseif profile.titleStyle == "SMALL" then
+        titleOffset = 20
+    else -- "NONE"
+        titleOffset = 20
+    end
+
+    -- Update the indicator arrow
+    if mainFrame.titleBtn and mainFrame.titleBtn.indicator then
+        mainFrame.titleBtn.indicator:Show()
+        mainFrame.titleBtn.indicator:SetText(collapsed and "+" or "-")
+    end
+
+    if collapsed then
+        -- Hide all currency lines
+        ReleaseUnusedLines(1)
+        -- Shrink the frame to just the title bar area
+        mainFrame:SetHeight(titleOffset + 8)
+    else
+        -- Full rebuild restores lines and correct height
+        self:RebuildLines()
+    end
+end
+
+function ECT:ToggleCollapse()
+    if not mainFrame then return end
+
+    self.db.profile.collapsed = not self.db.profile.collapsed
+    self:ApplyCollapsedState()
 end
 
 ---------------------------------------------------------------------------
@@ -636,6 +713,8 @@ end
 function ECT:OnPlayerEnteringWorld()
     self:CreateMainFrame()
     self:RebuildLines()
+    -- Restore collapsed state from saved profile (indicator + frame height)
+    self:ApplyCollapsedState()
 end
 
 function ECT:OnCurrencyUpdate()
