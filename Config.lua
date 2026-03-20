@@ -348,6 +348,34 @@ local function GetOptions()
                             ECT:UpdateMainFrame()
                         end,
                     },
+                    titleText = {
+                        type   = "input",
+                        name   = "Title Text",
+                        desc   = "Custom text displayed in the title bar",
+                        order  = 2.5,
+                        width  = "double",
+                        disabled = function() return ECT.db.profile.titleStyle == "NONE" end,
+                        get    = function() return ECT.db.profile.titleText end,
+                        set    = function(_, val)
+                            ECT.db.profile.titleText = val
+                            ECT:UpdateMainFrame()
+                        end,
+                    },
+                    titleTextReset = {
+                        type  = "execute",
+                        name  = "Reset Title",
+                        desc  = "Reset the title text to its default value",
+                        order = 2.6,
+                        width = 0.7,
+                        disabled = function()
+                            return ECT.db.profile.titleText == ECT.DB_DEFAULTS.profile.titleText
+                        end,
+                        func  = function()
+                            ECT.db.profile.titleText = ECT.DB_DEFAULTS.profile.titleText
+                            ECT:UpdateMainFrame()
+                            LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
+                        end,
+                    },
                     growDirection = {
                         type   = "select",
                         name   = "Growth Direction",
