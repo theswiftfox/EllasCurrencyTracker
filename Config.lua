@@ -547,6 +547,18 @@ local function GetOptions()
                             ECT:RebuildLines()
                         end,
                     },
+                    anchorLock = {
+                        type  = "toggle",
+                        name  = "Unlock Anchor",
+                        desc  = "Unlock the overlay so it can be repositioned by dragging the title bar",
+                        order = 33,
+                        width = "full",
+                        get   = function() return ECT:IsAnchorUnlocked() end,
+                        set   = function(_, val)
+                            ECT:ToggleAnchor()
+                            LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
+                        end,
+                    },
                     headerSize = {
                         type  = "header",
                         name  = "Sizing",

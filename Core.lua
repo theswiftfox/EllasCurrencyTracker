@@ -500,6 +500,7 @@ function ECT:CreateMainFrame()
     end)
 
     dragBar:Hide()
+    dragBar:SetFrameLevel(mainFrame:GetFrameLevel() + 3)
     mainFrame.dragBar = dragBar
 
     -- Settings button (gear icon, opens config to Currencies tab)
@@ -557,8 +558,8 @@ function ECT:CreateMainFrame()
         ECT:ToggleCollapse()
     end)
 
-    -- Keep the title button above the drag bar but below the settings button
-    titleBtn:SetFrameLevel(mainFrame:GetFrameLevel() + 3)
+    -- Keep the title button below the drag bar and settings button
+    titleBtn:SetFrameLevel(mainFrame:GetFrameLevel() + 2)
     mainFrame.titleBtn = titleBtn
 
     self:UpdateMainFrame()
@@ -617,6 +618,10 @@ function ECT:ToggleAnchor()
         end
     end
     self:Print(anchorUnlocked and "Anchor unlocked - drag to move" or "Anchor locked")
+end
+
+function ECT:IsAnchorUnlocked()
+    return anchorUnlocked
 end
 
 --- Apply the current collapsed/expanded visual state without toggling.
